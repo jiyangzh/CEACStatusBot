@@ -12,17 +12,24 @@ jobs:
   build:
     runs-on: self-hosted
     steps:
+      # 1. Checkout repository
       - uses: actions/checkout@v4
 
+      # 2. Show Python version
       - run: python3 --version
 
-      - name: Set up venv
+      # 3. Set up virtual environment and install uv if missing
+      - name: Set up venv and install uv
         run: |
-          python3 -m venv .venv
-          source .venv/bin/activate
-          python -m pip install --upgrade pip
-          pip install uv
+          if [ ! -d ".venv" ]; then
+            python3 -m venv .venv
+          fi
+          # Upgrade pip in venv
+          .venv/bin/python -m pip install --upgrade pip
+          # Install uv in venv
+          .venv/bin/pip install uv
 
+      # 4. Cache pip packages (optional, speeds up repeated installs)
       - name: Cache Python packages
         uses: actions/cache@v3
         with:
@@ -31,11 +38,11 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-pip-
 
+      # 5. Sync environment using uv
       - name: Sync environment with uv
-        run: |
-          source .venv/bin/activate
-          uv sync
+        run: .venv/bin/uv sync
 
+      # 6. Execute your Python script using uv
       - name: Execute py script
         env:
           LOCATION: ${{ secrets.LOCATION }}
@@ -51,9 +58,9 @@ jobs:
           TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
           GITHUB_REPOSITORY: ${{ github.repository }}
-        run: |
-          .venv/bin/uv run trigger.py
+        run: .venv/bin/uv run trigger.py
 
+      # 7. Upload status artifact
       - name: Upload status artifact
         uses: actions/upload-artifact@v4
         with:
