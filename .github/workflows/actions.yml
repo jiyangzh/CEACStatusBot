@@ -9,28 +9,29 @@ on:
     - cron: '17 * * * *' # every hour at :17
 
 jobs:
-  build:
+  run-trigger:
     runs-on: self-hosted
+
     steps:
       # 1. Checkout repository
-      - uses: actions/checkout@v4
+      - name: Checkout repo
+        uses: actions/checkout@v4
 
       # 2. Show Python version
-      - run: python3 --version
+      - name: Python version
+        run: python3 --version
 
-      # 3. Set up virtual environment and install uv if missing
-      - name: Set up venv and install uv
-        run: |
-          if [ ! -d ".venv" ]; then
-            python3 -m venv .venv
-          fi
-          # Upgrade pip in venv
-          .venv/bin/python -m pip install --upgrade pip
-          # Install uv in venv
-          .venv/bin/pip install uv
+      # 3. Cache uv-managed virtual environment
+      - name: Cache uv .venv
+        uses: actions/cache@v3
+        with:
+          path: .venv
+          key: ${{ runner.os }}-uv-${{ hashFiles('**/uv.lock') }}
+          restore-keys: |
+            ${{ runner.os }}-uv-
 
-      # 4. Cache pip packages (optional, speeds up repeated installs)
-      - name: Cache Python packages
+      # 4. Cache pip packages separately (optional but speeds up uv sync)
+      - name: Cache pip
         uses: actions/cache@v3
         with:
           path: ~/.cache/pip
@@ -38,12 +39,13 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-pip-
 
-      # 5. Sync environment using uv
-      - name: Sync environment with uv
-        run: .venv/bin/uv sync
+      # 5. Sync environment with uv (will reuse cached .venv if available)
+      - name: Sync environment
+        run: uv sync
 
-      # 6. Execute your Python script using uv
-      - name: Execute py script
+      # 6. Run your Python script via uv
+      - name: Execute trigger.py
+        run: uv run trigger.py
         env:
           LOCATION: ${{ secrets.LOCATION }}
           NUMBER: ${{ secrets.NUMBER }}
@@ -58,7 +60,6 @@ jobs:
           TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
           GH_TOKEN: ${{ secrets.GH_TOKEN }}
           GITHUB_REPOSITORY: ${{ github.repository }}
-        run: .venv/bin/uv run trigger.py
 
       # 7. Upload status artifact
       - name: Upload status artifact
